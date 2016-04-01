@@ -2,6 +2,7 @@ package com.gmou.trading.model;
 
 import com.google.common.collect.Lists;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
@@ -9,18 +10,30 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Created by gmou on 15/11/17.
  */
-public class Trade implements Comparable<Trade> {
+public class Trade {
 
     public static AtomicLong count = new AtomicLong();
+    // 最大拆单数
+    public static int MAX_TRADE_NUM = 5;
 
     private long id;
     private String tid;
     private long userId;
     private long amount;
+    private long leftAmount;        // 此单未成交金额
+    private long minTradeAmount;    // 此单拆单最小成交金额
     private int type;
+    private boolean hasChange;
 
-    public static final int TYPE_SELL = 0;
-    public static final int TYPE_BUY = 0;
+    private List<Trade> others = new ArrayList<Trade>();
+
+    public enum TradeType {
+        SELL(0),BUY(1);
+        public int code;
+        TradeType(int code) {
+            this.code = code;
+        }
+    }
 
     private List<TradeSegment> segments = Lists.newArrayList();
 
@@ -35,6 +48,7 @@ public class Trade implements Comparable<Trade> {
         this.id = count.incrementAndGet();
         this.userId = userId;
         this.amount = amount;
+        this.leftAmount = amount;
         this.type = type;
         this.tid = UUID.randomUUID().toString();
         this.tid.replace("-", "");
@@ -44,6 +58,7 @@ public class Trade implements Comparable<Trade> {
         this.id = id; //count.incrementAndGet();
         this.userId = userId;
         this.amount = amount;
+        this.leftAmount = amount;
         this.type = type;
         this.tid = UUID.randomUUID().toString();
         this.tid.replace("-", "");
@@ -93,11 +108,48 @@ public class Trade implements Comparable<Trade> {
         this.tid = tid;
     }
 
-    public void addSegment(long userId, long amount, int type) {
-        this.segments.add(new TradeSegment(userId, amount, type));
+    public long getLeftAmount() {
+        return leftAmount;
     }
 
-    public int compareTo(Trade o) {
-        return this.getAmount() > this.getAmount() ? 1 : (this.getAmount() == this.getAmount() ? 0 : -1);
+    public void setLeftAmount(long leftAmount) {
+        this.hasChange = true;
+        this.leftAmount = leftAmount;
+    }
+
+    public long getMinTradeAmount() {
+        if(MAX_TRADE_NUM == 0) {
+            return 0;
+        }
+        double m = Math.ceil((double)leftAmount/MAX_TRADE_NUM);
+        return (long)m;
+    }
+
+    public void setMinTradeAmount(long minTradeAmount) {
+        this.minTradeAmount = minTradeAmount;
+    }
+
+    public boolean isHasChange() {
+        return hasChange;
+    }
+
+    public void setHasChange(boolean hasChange) {
+        this.hasChange = hasChange;
+    }
+
+    public List<Trade> getOthers() {
+        return others;
+    }
+
+    public void setOthers(List<Trade> others) {
+        this.others = others;
+    }
+
+    public void addOther(Trade trade) {
+        this.others.add(trade);
+    }
+
+    public void addSegment(long tradeId, long userId, long amount, int type) {
+        this.segments.add(new TradeSegment(tradeId, userId, amount, type));
     }
 }

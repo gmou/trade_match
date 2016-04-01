@@ -1,11 +1,11 @@
 package com.gmou.trading.core;
 
 import com.gmou.trading.model.Trade;
+import com.gmou.trading.model.TradeComparator;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.PriorityBlockingQueue;
+import java.util.PriorityQueue;
 
 /**
  * Created by gmou on 15/11/17.
@@ -13,21 +13,14 @@ import java.util.concurrent.PriorityBlockingQueue;
 public class TradingMarket {
 
     // 接受帮助(卖方)
-    public static PriorityBlockingQueue<Trade> sells = new PriorityBlockingQueue<Trade>(1000, new Comparator<Trade>() {
-        public int compare(Trade o1, Trade o2) {
-            return o1.getAmount() > o2.getAmount()? 1 : (o1.getAmount() == o2.getAmount() ? 0 : -1);
-        }
-    });
+    public static PriorityQueue<Trade> sells = new PriorityQueue<Trade>(1000, new TradeComparator());
 
     // 提供帮助(买方)
-    public static PriorityBlockingQueue<Trade> buys = new PriorityBlockingQueue<Trade>(1000, new Comparator<Trade>() {
-        public int compare(Trade o1, Trade o2) {
-            return o1.getAmount() > o2.getAmount()? 1 : (o1.getAmount() == o2.getAmount() ? 0 : -1);
-        }
-    });
+    public static PriorityQueue<Trade> buys = new PriorityQueue<Trade>(1000, new TradeComparator());
 
     // 已完成列表
-    public static List<Trade> dones = new ArrayList<Trade>(1000);
+    public static List<Trade> sellDones = new ArrayList<Trade>(1000);
+    public static List<Trade> buyDones = new ArrayList<Trade>(1000);
 
     // 添加交易信息
     public static void addSell(Trade trade) {
@@ -43,37 +36,54 @@ public class TradingMarket {
         // 以sells为纬度进行撮合
         Trade sell = sells.poll();
         Trade buy = buys.poll();
+        boolean stop = false;
 
         System.out.println("** begin **");
 
-        while (sell != null && buy != null) {
+        while (sell != null && buy != null && !stop) {
 
-            System.out.println(String.format("\n开始进行交易:id:%s, Amount:%s, uid:%s", sell.getId(), sell.getAmount(), sell.getUserId()));
+            System.out.println(String.format("\n开始进行交易:买家id:%s, Amount:%s, uid:%s", sell.getId(), sell.getLeftAmount(), sell.getUserId()));
 
-//            long left = sell.getAmount();
-
-            while(buy != null && sell.getAmount() > 0) {
+            while(buy != null && sell.getLeftAmount() > 0) {
                 // 此次交易的金额
                 long tradeAmount = buy.getAmount() > sell.getAmount() ? sell.getAmount() : buy.getAmount();
 
-                System.out.println(String.format(">>交易:%s from:%s id:%s", tradeAmount, buy.getUserId(), buy.getId()));
-
-                sell.setAmount(sell.getAmount() - tradeAmount);
-
-                buy.setAmount(buy.getAmount() - tradeAmount);
-                sell.addSegment(buy.getUserId(), tradeAmount, sell.getType());
-
-                if(sell.getAmount() == 0) {
-                    dones.add(sell);
+                // 卖单过小
+                while(buy != null && tradeAmount < sell.getMinTradeAmount()) {
+                    buyDones.add(buy);
+                    buy = buys.poll();
                 }
 
-                if(buy.getAmount() == 0) {
+                if(buy == null || tradeAmount < sell.getMinTradeAmount()) {
+                    stop = true;
+                    break;
+                }
+
+                // 买单过小
+                if(sell != null && tradeAmount < buy.getMinTradeAmount()) {
+                    sellDones.add(sell);
+                    sell = sells.poll();
+                }
+
+                System.out.println(String.format(">>交易:%s from:%s id:%s", tradeAmount, buy.getUserId(), buy.getId()));
+
+                sell.setLeftAmount(sell.getLeftAmount() - tradeAmount);
+                buy.setLeftAmount(buy.getLeftAmount() - tradeAmount);
+
+                sell.addSegment(buy.getId(), buy.getUserId(), tradeAmount, sell.getType());
+                buy.addSegment(sell.getId(), sell.getUserId(), tradeAmount, buy.getType());
+
+                if(sell.getLeftAmount() == 0) {
+                    sellDones.add(sell);
+                }
+
+                if(buy.getLeftAmount() == 0) {
                     buy = buys.poll();
                 }
 
             }
 
-            if(sell.getAmount() > 0) {
+            if(sell.getLeftAmount() > 0) {
                 break;
             }
 
@@ -82,23 +92,23 @@ public class TradingMarket {
 
         System.out.println("\n** end **");
 
-        if(sell != null && sell.getAmount() > 0) {
+        if(sell != null && sell.getLeftAmount() > 0) {
             sells.add(sell);
         }
 
-        if(buy != null && buy.getAmount() > 0) {
+        if(buy != null && buy.getLeftAmount() > 0) {
             buys.add(buy);
         }
 
         System.out.println("\n未完成的卖单:");
         display(sells);
 
-        System.out.println("\n外完成的买单:");
+        System.out.println("\n未完成的买单:");
         display(buys);
 
     }
 
-    public static void display(PriorityBlockingQueue<Trade> queue) {
+    public static void display(PriorityQueue<Trade> queue) {
         Trade trade = queue.poll();
 
         while(trade != null) {

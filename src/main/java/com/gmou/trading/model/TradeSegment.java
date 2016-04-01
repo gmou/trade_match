@@ -5,11 +5,13 @@ package com.gmou.trading.model;
  */
 public class TradeSegment {
 
+    private long tradeId;
     private long userId;
     private long amount;
     private int type;
 
-    public TradeSegment(long userId, long amount, int type) {
+    public TradeSegment(long tradeId, long userId, long amount, int type) {
+        this.tradeId = tradeId;
         this.userId = userId;
         this.amount = amount;
         this.type = type;
@@ -37,5 +39,13 @@ public class TradeSegment {
 
     public void setType(int type) {
         this.type = type;
+    }
+
+    public long getTradeId() {
+        return tradeId;
+    }
+
+    public void setTradeId(long tradeId) {
+        this.tradeId = tradeId;
     }
 }
